@@ -1,0 +1,268 @@
+---
+title: "New file"
+description: "---
+title: '批量对话补全'
+openapi: post /batch/chat/completions
+---
+<Tip>
+    本文供您查询接口BatchChatCompletions完整字段说明以及详细取值，如您需要了解批量对话补全如何调用以及使用事项，可以参考[教程](https://www.volcengine.com/docs/82379/1399519)。
+</Tip>
+
+<RequestExample>
+
+```shell Curl
+curl https://ark.cn-beijing.volces.com/api/v3/batch/chat/completions \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer <ARK_API_KEY>" \
+-d '{
+  "model":"<YOUR_BATCH_ENDPOINT_ID>",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "Hello!"
+    }
+  ]
+}'
+```
+
+```python Python SDK
+import asyncio
+import sys
+from datetime import datetime
+import uvloop
+from volcenginesdkarkruntime import AsyncArk
+
+async def worker(worker_id, task_num, timeout):
+    """
+    异步线程函数，用于线程中需要完成的任务，您需根据自己的业务进行调整，当前使用了一个最简单的对话来代替任务。
+    :param worker_id: 线程的唯一标识符。
+    :param task_num: 每个线程需要处理的任务数量。
+    """
+    client = AsyncArk(timeout=timeout)
+    print(f"Worker {worker_id} is starting.")
+    for i in range(task_num):
+        print(f"Worker {worker_id} task {i} is running.")
+        try:
+            completion = await client.batch_chat.completions.create(
+                # 替换为您的批量推理接入点ID
+                model="<YOUR_ENDPOINT_ID>",
+                messages=[
+                    {"role": "system", "content": "你是豆包，是由字节跳动开发的 AI 人工智能助手"},
+                    {"role": "user", "content": "你好"},
+                ],
+            )
+            print(completion.choices[0].message.content)
+        except Exception as e:
+            print(f"Worker {worker_id} task {i} failed with error: {e}")
+        else:
+            print(f"Worker {worker_id} task {i} is completed.")
+    print(f"Worker {worker_id} is completed.")
+
+async def main():
+    """
+    主函数，用于协调多个线程并计算总时间。
+    """
+    # 设置并发线程的数量
+    worker_num = 10000
+    # 设置每个线程可以运行的任务
+    task_num = 5
+    start = datetime.now()
+     # 设置超时时间，您根据业务调整任务超时时间，可以调整范围在10分钟到72小时，建议尽量设置大些，保障任务能正常完成
+    timeout = 3600*24 
+    # 创建任务列表
+    tasks = [worker(i, task_num, timeout) for i in range(worker_num)]
+    await asyncio.gather(*tasks)
+    end = datetime.now()
+    print(f"Total time: {end - start}, Total task: {worker_num * task_num}")
+
+if __name__ == "__main__":
+    if sys.version_info >= (3, 11):
+        with asyncio.Runner(loop_factory=uvloop.new_event_loop) as runner:
+            runner.run(main())
+    else:
+        uvloop.install()
+        asyncio.run(main())
+```
+
+```go Go SDK
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    "sync"
+    "time"
+
+    "github.com/volcengine/volcengine-go-sdk/service/arkruntime"
+    "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
+    "github.com/volcengine/volcengine-go-sdk/volcengine"
+)
+
+// main 函数是程序的入口点
+func main() {
+    // 设置超时时间为24小时
+    timeout := time.Hour * 24
+    // 设置工作线程数量为10000
+    workerNum := 10000
+
+    // 使用API密钥创建一个新的客户端实例，并设置超时时间
+    // 注意：这里的API密钥是从环境变量中获取的，设定超时时间
+    client := arkruntime.NewClientWithApiKey(os.Getenv("ARK_API_KEY"), arkruntime.WithTimeout(timeout))
+    // 启动指定数量的工作线程
+    client.StartBatchWorker(workerNum)
+
+    // 创建一个上下文对象，用于控制请求的生命周期
+    ctx := context.Background()
+    // 初始化工作线程索引
+    i := 0
+    // 设置每个工作线程要执行的任务数量
+    taskNum := 5
+    // 创建一个等待组，用于等待所有工作线程完成任务
+    wg := sync.WaitGroup{}
+    // 循环启动工作线程
+    for i < workerNum {
+        // 增加等待组的计数器
+        wg.Add(1)
+        // 启动一个新的工作线程
+        go func(index int) {
+            // 在工作线程结束时减少等待组的计数器
+            defer wg.Done()
+            // 初始化任务索引
+            j := 0
+            // 循环执行任务
+            for j < taskNum {
+                // 创建一个聊天完成请求
+                _, err := client.CreateBatchChatCompletion(ctx, model.ChatCompletionRequest{
+                    // 从环境变量中读取，您批量推理请求的推理接入点
+                    Model: os.Getenv("YOUR_ENDPOINT_ID"),
+                    // 设置请求的消息内容
+                    Messages: []*model.ChatCompletionMessage{
+                        {
+                            // 设置消息的角色为系统角色
+                            Role: model.ChatMessageRoleSystem,
+                            // 设置消息的内容
+                            Content: &model.ChatCompletionMessageContent{
+                                // 设置消息的字符串值
+                                StringValue: volcengine.String("你是豆包，是由字节跳动开发的 AI 人工智能助手"),
+                            },
+                        },
+                        {
+                            // 设置消息的角色为用户角色
+                            Role: model.ChatMessageRoleUser,
+                            // 设置消息的内容
+                            Content: &model.ChatCompletionMessageContent{
+                                // 设置消息的字符串值
+                                StringValue: volcengine.String("常见的十字花科植物有哪些？"),
+                            },
+                        },
+                    },
+                })
+                // 增加任务索引
+                j++
+                // 检查是否有错误发生
+                if err != nil {
+                    // 如果有错误，打印错误信息并继续下一个任务
+                    fmt.Printf("worker %d request %d Fail Err %s\n", index, j, err)
+                    continue
+                }
+            }
+        }(i)
+        // 增加工作线程索引
+        i++
+    }
+    // 等待所有工作线程完成任务
+    wg.Wait()
+}
+```
+
+
+```java Java SDK
+package com.example;
+
+import com.volcengine.ark.runtime.model.completion.chat.ChatCompletionRequest;
+import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
+import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
+import com.volcengine.ark.runtime.service.ArkService;
+import okhttp3.ConnectionPool;
+import okhttp3.Dispatcher;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+public class BatchChatCompletionsExample {
+    public static void main(String[] args) {
+        // 为batch chat设置一个较大的超时时间，10分钟到72小时之间
+        Duration timeout = Duration.ofHours(24);
+        // 您需要根据自己的需求配置最大线程数和每个线程执行的任务数
+        int workerNum = 10000;
+        int taskNum = 5;
+        // 您需要将自己的API密钥设置为环境变量
+        String apikey = System.getenv("ARK_API_KEY");
+        ConnectionPool connectionPool = new ConnectionPool(workerNum, 10, TimeUnit.MINUTES);
+        Dispatcher dispatcher = new Dispatcher();
+        dispatcher.setMaxRequests(workerNum);
+        dispatcher.setMaxRequestsPerHost(workerNum);
+        // 请单独为batch chat单独初始化一个service实例，且多个Endpoint间也不要复用同一个service实例，避免互相影响。
+        // 单个service会根据最大并发数启动对应的线程池，会占用一定的资源。
+        ArkService service = ArkService.builder().dispatcher(dispatcher).timeout(timeout).connectionPool(connectionPool)
+                .apiKey(apikey)
+                .build();
+        ExecutorService executorService = Executors.newFixedThreadPool(workerNum);
+        CountDownLatch latch = new CountDownLatch(workerNum);
+        Runnable batchChatTask = () -> {
+            System.out.println(Thread.currentThread().getName() + ":在此线程中执行任务");
+            for (int i = 0; i < taskNum; i++) {
+                // 每个线程执行的任务逻辑，您需要按照自己业务需求进行改造，这里作为示例，展示一个最简单对话的例子
+                try {
+                    final List<ChatMessage> messages = new ArrayList<>();
+                    final ChatMessage systemMessage = ChatMessage.builder().role(ChatMessageRole.SYSTEM)
+                            .content("你是豆包，是由字节跳动开发的 AI 人工智能助手").build();
+                    final ChatMessage userMessage = ChatMessage.builder().role(ChatMessageRole.USER)
+                            .content("你好").build();
+                    messages.add(systemMessage);
+                    messages.add(userMessage);
+                    
+                    ChatCompletionRequest batchChatCompletionRequest = ChatCompletionRequest.builder()
+                            // 您需要替换您的批量推理接入点ID
+                            .model("<YOUR_ENDPOINT_ID>")
+                            .messages(messages)
+                            .build();
+                    service.createBatchChatCompletion(batchChatCompletionRequest)
+                            .getChoices()
+                            .forEach(choice -> System.out.println(Thread.currentThread().getName() + ":"
+                                    + choice.getMessage().getContent()));
+                } catch (Exception e) {
+                    System.out.println(Thread.currentThread().getName() + "：请求" + i + "失败。");
+                    System.out.println("    报错信息：" + e.getMessage());
+                }
+            }
+            System.out.println(Thread.currentThread().getName() + "：此线程中任务完成。");
+            latch.countDown();
+        };
+        for (int i = 0; i < workerNum; i++) {
+            executorService.submit(batchChatTask);
+        }
+        try {
+            latch.await();
+        } catch (InterruptedException ignored) {
+        }
+        System.out.println("所有线程已退出");
+        executorService.shutdown();
+        System.out.println("线程池已退出");
+        // 当所有请求完成，请关闭服务
+        service.shutdownExecutor();
+    }
+}
+```
+
+</RequestExample>"
+---
